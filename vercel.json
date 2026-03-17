@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "src/app/api/cron/claim/route.ts": {
+      "maxDuration": 10
+    },
+    "src/app/api/stats/route.ts": {
+      "maxDuration": 10
+    }
+  }
+}

@@ -1,0 +1,7 @@
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  serverExternalPackages: ["@solana/web3.js", "@pump-fun/pump-sdk", "bs58"],
+};
+
+export default nextConfig;
