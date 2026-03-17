@@ -1,18 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --color-bg: #080808;
-  --color-surface: #0f0f0f;
-  --color-surface-alt: #161616;
-  --color-border: #222222;
-  --color-border-bright: #333333;
-  --color-text-primary: #ffffff;
-  --color-text-secondary: rgba(255, 255, 255, 0.65);
-  --color-text-muted: rgba(255, 255, 255, 0.35);
-  --color-accent: #FF6B00;
-  --color-accent-dim: rgba(255, 107, 0, 0.10);
-  --color-accent-glow: rgba(255, 107, 0, 0.45);
-  --color-accent-soft: rgba(255, 107, 0, 0.20);
+  --color-bg: #05080f;
+  --color-surface: #090e1a;
+  --color-surface-alt: #0e1525;
+  --color-border: #1a2540;
+  --color-border-bright: #243360;
+  --color-text-primary: #e8f4ff;
+  --color-text-secondary: rgba(232, 244, 255, 0.60);
+  --color-text-muted: rgba(232, 244, 255, 0.30);
+  --color-accent: #14F195;
+  --color-accent-dim: rgba(20, 241, 149, 0.08);
+  --color-accent-glow: rgba(20, 241, 149, 0.40);
+  --color-accent-soft: rgba(20, 241, 149, 0.15);
 }
 
 * {
@@ -52,7 +52,7 @@ body {
   color: var(--color-accent);
   text-shadow:
     0 0 20px var(--color-accent-glow),
-    0 0 60px rgba(255, 107, 0, 0.2);
+    0 0 60px rgba(20, 241, 149, 0.15);
 }
 
 /* ── Stat card ── */
@@ -63,7 +63,7 @@ body {
 }
 .stat-card:hover {
   border-color: var(--color-accent);
-  box-shadow: 0 0 32px var(--color-accent-dim), 0 0 8px rgba(255, 107, 0, 0.08);
+  box-shadow: 0 0 32px var(--color-accent-dim), 0 0 8px rgba(20, 241, 149, 0.06);
   transform: translateY(-2px);
 }
 
@@ -84,7 +84,7 @@ body {
 }
 
 /* ── Pulsing dot ── */
-@keyframes pulse-orange {
+@keyframes pulse-green {
   0%, 100% {
     opacity: 1;
     box-shadow: 0 0 6px var(--color-accent);
@@ -100,7 +100,7 @@ body {
   height: 8px;
   border-radius: 50%;
   background: var(--color-accent);
-  animation: pulse-orange 2s ease-in-out infinite;
+  animation: pulse-green 2s ease-in-out infinite;
   flex-shrink: 0;
 }
 
@@ -203,8 +203,8 @@ body {
 /* ── Hero grid background ── */
 .hero-grid {
   background-image:
-    linear-gradient(rgba(255, 107, 0, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 107, 0, 0.04) 1px, transparent 1px);
+    linear-gradient(rgba(20, 241, 149, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(20, 241, 149, 0.03) 1px, transparent 1px);
   background-size: 60px 60px;
 }
 
@@ -214,7 +214,7 @@ body {
   inset: 0;
   background: radial-gradient(
     ellipse 60% 50% at 50% 50%,
-    rgba(255, 107, 0, 0.07) 0%,
+    rgba(20, 241, 149, 0.06) 0%,
     transparent 70%
   );
   pointer-events: none;

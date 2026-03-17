@@ -828,8 +828,11 @@ export function ClankerGame() {
     function onKey(e: KeyboardEvent) {
       const gs = gsRef.current;
       if (e.type === "keydown") {
-        if (e.code === "Space") {
+        // Prevent arrow keys / space from scrolling the page during gameplay
+        if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Space"].includes(e.code)) {
           e.preventDefault();
+        }
+        if (e.code === "Space") {
           if (!gs || gs.phase === "start") { startGame(); return; }
           if (gs.phase === "dead") { startGame(); return; }
         }
