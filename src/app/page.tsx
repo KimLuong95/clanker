@@ -65,9 +65,23 @@ export default function ClankerPage() {
           Destroy the paper hands before they rug the chart. Every wave is faster. Don&apos;t let them reach the floor — or you&apos;re cooked.
         </p>
 
-        {/* The Game */}
-        <div className="animate-fade-in-up delay-400 w-full">
+        {/* The Game + flanking robots */}
+        <div className="animate-fade-in-up delay-400 w-full flex items-center justify-center gap-4">
+          {/* Left robot — hidden on small screens */}
+          <img
+            src="/clanker.svg"
+            alt="Clanker robot"
+            className="hidden lg:block flex-shrink-0 float-animation"
+            style={{ width: 160, height: 160, opacity: 0.85 }}
+          />
           <ClankerGame />
+          {/* Right robot — hidden on small screens */}
+          <img
+            src="/clanker.svg"
+            alt="Clanker robot"
+            className="hidden lg:block flex-shrink-0 float-animation"
+            style={{ width: 160, height: 160, opacity: 0.85, animationDelay: "2s" }}
+          />
         </div>
 
         {/* CTAs */}
