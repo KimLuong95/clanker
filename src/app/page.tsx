@@ -62,7 +62,7 @@ export default function ClankerPage() {
             lineHeight: "1.7",
           }}
         >
-          Tap the Clanker to smelt tokens. Hire more workers to automate the burn. Meanwhile, the real agent does buyback &amp; burn on-chain every minute.
+          Destroy the paper hands before they rug the chart. Every wave is faster. Don&apos;t let them reach the floor — or you&apos;re cooked.
         </p>
 
         {/* The Game */}
