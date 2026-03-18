@@ -32,7 +32,7 @@ export function triggerClaimOnce(): void {
   });
 }
 
-// ── Jupiter swap: SOL → token ──────────────────────────────────────────────
+// ── Jupiter swap: SOL → token → burn ──────────────────────────────────────
 
 async function jupiterBuyAndBurn(
   connection: Connection,
@@ -42,7 +42,7 @@ async function jupiterBuyAndBurn(
 ): Promise<{ signature: string; tokensBurned: string } | null> {
   const SOL_MINT = "So11111111111111111111111111111111111111112";
 
-  // 1. Get a quote from Jupiter v6
+  // 1. Get Jupiter quote
   const quoteUrl =
     `https://quote-api.jup.ag/v6/quote` +
     `?inputMint=${SOL_MINT}` +
@@ -85,7 +85,7 @@ async function jupiterBuyAndBurn(
     return null;
   }
 
-  // 3. Sign and send swap transaction
+  // 3. Sign and send swap
   const swapTxBuf = Buffer.from(swapTxBase64, "base64");
   const swapTx = VersionedTransaction.deserialize(swapTxBuf);
   swapTx.sign([payer]);
@@ -108,7 +108,7 @@ async function jupiterBuyAndBurn(
 
   console.log(`[claim] Jupiter swap confirmed: ${swapSig}`);
 
-  // 4. Read token balance from our ATA
+  // 4. Read token balance from ATA
   const mint = new PublicKey(mintStr);
   const ata = await getAssociatedTokenAddress(mint, payer.publicKey);
 
@@ -117,7 +117,6 @@ async function jupiterBuyAndBurn(
   try {
     const tokenAccount = await getAccount(connection, ata, "confirmed");
     tokenAmountRaw = tokenAccount.amount;
-    // Get decimals from mint
     const mintInfo = await connection.getParsedAccountInfo(mint);
     const parsed = (mintInfo.value?.data as any)?.parsed;
     decimals = parsed?.info?.decimals ?? 6;
@@ -127,18 +126,12 @@ async function jupiterBuyAndBurn(
   }
 
   if (tokenAmountRaw === 0n) {
-    console.log(`[claim] No tokens received from swap — nothing to burn`);
+    console.log(`[claim] No tokens received from swap`);
     return { signature: swapSig, tokensBurned: "0" };
   }
 
   // 5. Burn all received tokens
-  const burnIx = createBurnCheckedInstruction(
-    ata,                    // token account
-    mint,                   // mint
-    payer.publicKey,        // authority
-    tokenAmountRaw,         // amount
-    decimals                // decimals
-  );
+  const burnIx = createBurnCheckedInstruction(ata, mint, payer.publicKey, tokenAmountRaw, decimals);
 
   const { blockhash: bh2, lastValidBlockHeight: lv2 } =
     await connection.getLatestBlockhash("confirmed");
@@ -165,7 +158,7 @@ async function jupiterBuyAndBurn(
   }
 
   const humanTokens = (Number(tokenAmountRaw) / Math.pow(10, decimals)).toFixed(0);
-  console.log(`[claim] Burned ${humanTokens} CLNK: ${burnSig}`);
+  console.log(`[claim] Burned ${humanTokens} CLNK — tx: ${burnSig}`);
   return { signature: burnSig, tokensBurned: humanTokens };
 }
 
@@ -193,37 +186,37 @@ export async function claimFees(): Promise<ClaimResult> {
 
   const connection = new Connection(rpcUrl, "confirmed");
   const sdk = new OnlinePumpSdk(connection);
-  const mint = new PublicKey(mintStr);
 
-  // Step 1: Check if there are fees ready to distribute
-  let feeInfo;
+  // Step 1: Check creator vault balance (regular pump.fun creator fees — not tokenized agent)
+  let vaultBalanceLamports: number;
   try {
-    feeInfo = await sdk.getMinimumDistributableFee(mint);
+    const balance = await sdk.getCreatorVaultBalanceBothPrograms(payer.publicKey);
+    vaultBalanceLamports = balance.toNumber();
   } catch (err: any) {
-    if (err.message?.includes("Sharing config not found")) {
-      return { status: "skipped", reason: "No fee sharing config found — set it up on pump.fun first" };
-    }
-    return { status: "error", error: `Fee check failed: ${err.message}` };
+    return { status: "error", error: `Creator vault balance check failed: ${err.message}` };
   }
 
-  if (!feeInfo.canDistribute) {
-    const sol = (feeInfo.distributableFees.toNumber() / LAMPORTS_PER_SOL).toFixed(6);
-    const min = (feeInfo.minimumRequired.toNumber() / LAMPORTS_PER_SOL).toFixed(6);
-    return { status: "skipped", reason: `Only ${sol} SOL available (need ${min} SOL minimum)` };
-  }
-
-  // Step 2: Build the distribute instructions (permissionless — creator receives SOL)
-  let instructions;
-  try {
-    const result = await sdk.buildDistributeCreatorFeesInstructions(mint);
-    instructions = result.instructions;
-  } catch (err: any) {
-    return { status: "error", error: `Build instructions failed: ${err.message}` };
+  // pump.fun minimum is 0.02 SOL to claim
+  const MIN_CLAIM_LAMPORTS = Math.floor(0.02 * LAMPORTS_PER_SOL);
+  if (vaultBalanceLamports < MIN_CLAIM_LAMPORTS) {
+    const sol = (vaultBalanceLamports / LAMPORTS_PER_SOL).toFixed(6);
+    return { status: "skipped", reason: `Only ${sol} SOL unclaimed (need 0.02 SOL minimum)` };
   }
 
   const payerBalance = await connection.getBalance(payer.publicKey);
-  if (payerBalance < 5000) {
-    return { status: "error", error: `Payer wallet has insufficient SOL for gas (${payerBalance} lamports)` };
+  if (payerBalance < 10_000) {
+    return { status: "error", error: `Dev wallet has insufficient SOL for gas` };
+  }
+
+  // Step 2: Collect creator fees into dev wallet
+  let instructions: any[];
+  try {
+    instructions = await sdk.collectCoinCreatorFeeInstructions(
+      payer.publicKey, // coinCreator (the wallet that created the coin)
+      payer.publicKey  // feePayer
+    );
+  } catch (err: any) {
+    return { status: "error", error: `Build collect instructions failed: ${err.message}` };
   }
 
   const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
@@ -255,30 +248,19 @@ export async function claimFees(): Promise<ClaimResult> {
     return { status: "error", error: `Transaction failed: ${JSON.stringify(confirmation.value.err)}` };
   }
 
-  const solDistributed = (feeInfo.distributableFees.toNumber() / LAMPORTS_PER_SOL).toFixed(6);
-  console.log(`[claim] Distributed ${solDistributed} SOL → ${payer.publicKey.toString()}`);
+  const solDistributed = (vaultBalanceLamports / LAMPORTS_PER_SOL).toFixed(6);
+  console.log(`[claim] Collected ${solDistributed} SOL → ${payer.publicKey.toString()}`);
 
-  // Step 3: Buyback 80% of the CLAIMED amount only.
-  // Use feeInfo.distributableFees (the exact on-chain amount just claimed) — NOT a wallet
-  // balance delta, to ensure we never accidentally spend existing wallet funds.
-  const claimedLamports = feeInfo.distributableFees.toNumber();
-  const buybackLamports = Math.floor(claimedLamports * 0.80);
-
-  // Hard cap: never spend more than 2 SOL in a single buyback as a safety guard
-  const MAX_BUYBACK_LAMPORTS = 2 * LAMPORTS_PER_SOL;
+  // Step 3: Use exactly 80% of the CLAIMED amount for buyback — never touch existing wallet balance
+  const buybackLamports = Math.floor(vaultBalanceLamports * 0.80);
+  const MAX_BUYBACK_LAMPORTS = 2 * LAMPORTS_PER_SOL; // hard safety cap per cycle
   const safeBuybackLamports = Math.min(buybackLamports, MAX_BUYBACK_LAMPORTS);
-  if (safeBuybackLamports < buybackLamports) {
-    console.warn(`[claim] Buyback capped at ${MAX_BUYBACK_LAMPORTS / LAMPORTS_PER_SOL} SOL (calculated ${buybackLamports / LAMPORTS_PER_SOL} SOL)`);
-  }
 
-  // Only buyback if > 0.001 SOL (to avoid dust swaps)
-  const MIN_BUYBACK_LAMPORTS = Math.floor(0.001 * LAMPORTS_PER_SOL);
-  if (safeBuybackLamports < MIN_BUYBACK_LAMPORTS) {
-    console.log(`[claim] Buyback skipped — only ${safeBuybackLamports} lamports (< ${MIN_BUYBACK_LAMPORTS})`);
+  if (safeBuybackLamports < Math.floor(0.001 * LAMPORTS_PER_SOL)) {
     return { status: "distributed", signature, solDistributed };
   }
 
-  console.log(`[claim] Starting buyback with ${(safeBuybackLamports / LAMPORTS_PER_SOL).toFixed(4)} SOL (80% of ${solDistributed} SOL claimed)`);
+  console.log(`[claim] Buyback: ${(safeBuybackLamports / LAMPORTS_PER_SOL).toFixed(4)} SOL (80% of ${solDistributed} claimed)`);
   const buybackResult = await jupiterBuyAndBurn(connection, payer, mintStr, safeBuybackLamports);
 
   return {
