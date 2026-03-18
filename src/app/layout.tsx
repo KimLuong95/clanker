@@ -3,11 +3,11 @@ import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Clanker | Put AI Robots to Work",
+  title: "CLANKER #001 — PSA GEM MINT 10 | Digital Collectible on Solana",
   description:
-    "The memecoin with AI robot workers that claim fees, buy back and burn $CLANKER on-chain — every minute, permissionless.",
+    "The SEC declared memecoins are Digital Collectibles. CLANKER #001 — PSA GEM MINT 10. Auto buyback & burn every minute. How much can this Digital Collectible be worth?",
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL || "https://clanker.fun"
+    process.env.NEXT_PUBLIC_SITE_URL || "https://clanker001.fun"
   ),
   icons: {
     icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
@@ -15,18 +15,18 @@ export const metadata: Metadata = {
     shortcut: "/favicon.svg",
   },
   openGraph: {
-    title: "Clanker",
+    title: "CLANKER #001 — PSA GEM MINT 10",
     description:
-      "AI robots that automatically buy back and burn their own token. On-chain. Permissionless.",
-    siteName: "Clanker",
+      "The SEC declared memecoins are Digital Collectibles. CLANKER #001 auto buys back & burns its own token every minute. On-chain. Permissionless.",
+    siteName: "CLANKER #001",
     locale: "en_US",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Clanker",
+    title: "CLANKER #001 — PSA GEM MINT 10",
     description:
-      "AI robots that automatically buy back and burn their own token. On-chain. Permissionless.",
+      "The SEC declared memecoins are Digital Collectibles. CLANKER #001 auto buys back & burns its own token every minute.",
   },
 };
 

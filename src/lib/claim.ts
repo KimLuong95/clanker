@@ -226,9 +226,6 @@ export async function claimFees(): Promise<ClaimResult> {
     return { status: "error", error: `Payer wallet has insufficient SOL for gas (${payerBalance} lamports)` };
   }
 
-  // Record balance before claiming
-  const balanceBefore = payerBalance;
-
   const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
   const tx = new VersionedTransaction(
     new TransactionMessage({
@@ -261,20 +258,28 @@ export async function claimFees(): Promise<ClaimResult> {
   const solDistributed = (feeInfo.distributableFees.toNumber() / LAMPORTS_PER_SOL).toFixed(6);
   console.log(`[claim] Distributed ${solDistributed} SOL → ${payer.publicKey.toString()}`);
 
-  // Step 3: Buyback 80% — buy CLNK tokens and burn them
-  const balanceAfter = await connection.getBalance(payer.publicKey);
-  const claimedLamports = Math.max(0, balanceAfter - balanceBefore + 5000); // add back gas cost estimate
+  // Step 3: Buyback 80% of the CLAIMED amount only.
+  // Use feeInfo.distributableFees (the exact on-chain amount just claimed) — NOT a wallet
+  // balance delta, to ensure we never accidentally spend existing wallet funds.
+  const claimedLamports = feeInfo.distributableFees.toNumber();
   const buybackLamports = Math.floor(claimedLamports * 0.80);
+
+  // Hard cap: never spend more than 2 SOL in a single buyback as a safety guard
+  const MAX_BUYBACK_LAMPORTS = 2 * LAMPORTS_PER_SOL;
+  const safeBuybackLamports = Math.min(buybackLamports, MAX_BUYBACK_LAMPORTS);
+  if (safeBuybackLamports < buybackLamports) {
+    console.warn(`[claim] Buyback capped at ${MAX_BUYBACK_LAMPORTS / LAMPORTS_PER_SOL} SOL (calculated ${buybackLamports / LAMPORTS_PER_SOL} SOL)`);
+  }
 
   // Only buyback if > 0.001 SOL (to avoid dust swaps)
   const MIN_BUYBACK_LAMPORTS = Math.floor(0.001 * LAMPORTS_PER_SOL);
-  if (buybackLamports < MIN_BUYBACK_LAMPORTS) {
-    console.log(`[claim] Buyback skipped — only ${buybackLamports} lamports (< ${MIN_BUYBACK_LAMPORTS})`);
+  if (safeBuybackLamports < MIN_BUYBACK_LAMPORTS) {
+    console.log(`[claim] Buyback skipped — only ${safeBuybackLamports} lamports (< ${MIN_BUYBACK_LAMPORTS})`);
     return { status: "distributed", signature, solDistributed };
   }
 
-  console.log(`[claim] Starting buyback with ${(buybackLamports / LAMPORTS_PER_SOL).toFixed(4)} SOL (80% of claimed)`);
-  const buybackResult = await jupiterBuyAndBurn(connection, payer, mintStr, buybackLamports);
+  console.log(`[claim] Starting buyback with ${(safeBuybackLamports / LAMPORTS_PER_SOL).toFixed(4)} SOL (80% of ${solDistributed} SOL claimed)`);
+  const buybackResult = await jupiterBuyAndBurn(connection, payer, mintStr, safeBuybackLamports);
 
   return {
     status: "distributed",

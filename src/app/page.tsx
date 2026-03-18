@@ -6,6 +6,7 @@ import { triggerClaimOnce } from "@/lib/claim";
 const MINT = process.env.AGENT_TOKEN_MINT || "PLACEHOLDER_MINT_ADDRESS";
 const DEXSCREENER_URL = `https://dexscreener.com/solana/${MINT}`;
 const PUMPFUN_URL = `https://pump.fun/coin/${MINT}`;
+const TWITTER_URL = "https://x.com/ClankerOnSolana";
 
 triggerClaimOnce();
 
@@ -163,6 +164,15 @@ export default function ClankerPage() {
               CA DROPPING SOON
             </div>
           )}
+          <a
+            href={TWITTER_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="buy-button"
+            style={{ background: "#000", color: "white" }}
+          >
+            𝕏 Follow
+          </a>
         </div>
 
         {/* CA copy */}
@@ -231,17 +241,22 @@ export default function ClankerPage() {
         className="w-full flex flex-col items-center gap-4 px-6 py-10"
         style={{ background: "#080808", borderTop: "1px solid #1a1a1a" }}
       >
-        {mintConfigured && (
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <a href={DEXSCREENER_URL} target="_blank" rel="noopener noreferrer" className="spy-button px-5 py-2.5 rounded-lg text-sm uppercase tracking-widest">
-              DexScreener
-            </a>
-            <a href={PUMPFUN_URL} target="_blank" rel="noopener noreferrer" className="spy-button px-5 py-2.5 rounded-lg text-sm uppercase tracking-widest">
-              pump.fun
-            </a>
-            <CopyButton address={MINT} />
-          </div>
-        )}
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <a href={TWITTER_URL} target="_blank" rel="noopener noreferrer" className="spy-button px-5 py-2.5 rounded-lg text-sm uppercase tracking-widest">
+            𝕏 Twitter
+          </a>
+          {mintConfigured && (
+            <>
+              <a href={DEXSCREENER_URL} target="_blank" rel="noopener noreferrer" className="spy-button px-5 py-2.5 rounded-lg text-sm uppercase tracking-widest">
+                DexScreener
+              </a>
+              <a href={PUMPFUN_URL} target="_blank" rel="noopener noreferrer" className="spy-button px-5 py-2.5 rounded-lg text-sm uppercase tracking-widest">
+                pump.fun
+              </a>
+              <CopyButton address={MINT} />
+            </>
+          )}
+        </div>
         <p className="mono text-xs text-center" style={{ color: "rgba(255,255,255,0.2)" }}>
           Clanker · Solana · Auto Buyback &amp; Burn · Not financial advice
         </p>
