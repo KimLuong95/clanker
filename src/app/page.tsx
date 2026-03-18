@@ -10,18 +10,36 @@ const TWITTER_URL = "https://x.com/ClankerOnSolana";
 
 triggerClaimOnce();
 
-function SecBanner() {
+function TopBar() {
+  const mintConfigured = MINT !== "PLACEHOLDER_MINT_ADDRESS";
+  const shortMint = mintConfigured ? `${MINT.slice(0, 6)}...${MINT.slice(-6)}` : null;
+
   return (
-    <div
-      className="w-full flex items-center justify-center gap-3 px-4 py-3"
-      style={{ background: "#1a1a00", borderBottom: "1px solid #444400" }}
-    >
-      <span style={{ fontSize: "1.1rem" }}>📋</span>
-      <p className="mono text-xs text-center" style={{ color: "#FFD700", letterSpacing: "0.05em" }}>
-        THE SEC HAS OFFICIALLY DECLARED MEMECOINS ARE{" "}
-        <span style={{ fontWeight: 700 }}>DIGITAL COLLECTIBLES</span>
-      </p>
-      <span style={{ fontSize: "1.1rem" }}>📋</span>
+    <div className="w-full flex flex-col">
+      {/* SEC banner */}
+      <div
+        className="w-full flex items-center justify-center gap-3 px-4 py-2.5"
+        style={{ background: "#1a1a00", borderBottom: "1px solid #333300" }}
+      >
+        <span style={{ fontSize: "1rem" }}>📋</span>
+        <p className="mono text-xs text-center" style={{ color: "#FFD700", letterSpacing: "0.05em" }}>
+          THE SEC HAS OFFICIALLY DECLARED MEMECOINS ARE{" "}
+          <span style={{ fontWeight: 700 }}>DIGITAL COLLECTIBLES</span>
+        </p>
+        <span style={{ fontSize: "1rem" }}>📋</span>
+      </div>
+      {/* CA bar */}
+      {mintConfigured && (
+        <div
+          className="w-full flex items-center justify-center gap-3 px-4 py-2"
+          style={{ background: "#CC0000" }}
+        >
+          <span className="mono text-xs font-bold text-white uppercase tracking-widest">CA:</span>
+          <span className="mono text-xs text-white hidden sm:inline" style={{ opacity: 0.95 }}>{MINT}</span>
+          <span className="mono text-xs text-white sm:hidden" style={{ opacity: 0.95 }}>{shortMint}</span>
+          <CopyButton address={MINT} compact />
+        </div>
+      )}
     </div>
   );
 }
@@ -90,8 +108,8 @@ export default function ClankerPage() {
   return (
     <main className="min-h-screen flex flex-col">
 
-      {/* ── SEC Meme Banner ── */}
-      <SecBanner />
+      {/* ── Top bar: SEC banner + CA ── */}
+      <TopBar />
 
       {/* ── PSA Hero (light section) ── */}
       <section className="psa-section flex flex-col items-center px-6 py-12 text-center">
