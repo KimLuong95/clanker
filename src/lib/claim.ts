@@ -7,11 +7,7 @@ import {
   VersionedTransaction,
   LAMPORTS_PER_SOL,
 } from "@solana/web3.js";
-import {
-  getAssociatedTokenAddress,
-  createBurnCheckedInstruction,
-  getAccount,
-} from "@solana/spl-token";
+import { createBurnCheckedInstruction } from "@solana/spl-token";
 import bs58 from "bs58";
 
 export type ClaimResult =
@@ -34,17 +30,19 @@ export function triggerClaimOnce(): void {
 
 // ── Jupiter swap: SOL → token → burn ──────────────────────────────────────
 
-async function jupiterBuyAndBurn(
+export async function jupiterBuyAndBurn(
   connection: Connection,
   payer: Keypair,
   mintStr: string,
   lamportsToSpend: number
 ): Promise<{ signature: string; tokensBurned: string } | null> {
   const SOL_MINT = "So11111111111111111111111111111111111111112";
+  const JUPITER_API_KEY = process.env.JUPITER_API_KEY ?? "";
+  const authHeader: Record<string, string> = JUPITER_API_KEY ? { "x-api-key": JUPITER_API_KEY } : {};
 
   // 1. Get Jupiter quote
   const quoteUrl =
-    `https://quote-api.jup.ag/v6/quote` +
+    `https://api.jup.ag/swap/v1/quote` +
     `?inputMint=${SOL_MINT}` +
     `&outputMint=${mintStr}` +
     `&amount=${lamportsToSpend}` +
@@ -53,8 +51,8 @@ async function jupiterBuyAndBurn(
 
   let quoteResponse: unknown;
   try {
-    const res = await fetch(quoteUrl);
-    if (!res.ok) throw new Error(`Jupiter quote failed: ${res.status}`);
+    const res = await fetch(quoteUrl, { headers: authHeader });
+    if (!res.ok) throw new Error(`Jupiter quote failed: ${res.status} ${await res.text()}`);
     quoteResponse = await res.json();
     if ((quoteResponse as any).error) throw new Error((quoteResponse as any).error);
   } catch (err: any) {
@@ -65,9 +63,9 @@ async function jupiterBuyAndBurn(
   // 2. Get swap transaction
   let swapTxBase64: string;
   try {
-    const res = await fetch("https://quote-api.jup.ag/v6/swap", {
+    const res = await fetch("https://api.jup.ag/swap/v1/swap", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeader },
       body: JSON.stringify({
         quoteResponse,
         userPublicKey: payer.publicKey.toString(),
@@ -76,7 +74,7 @@ async function jupiterBuyAndBurn(
         dynamicSlippage: true,
       }),
     });
-    if (!res.ok) throw new Error(`Jupiter swap API failed: ${res.status}`);
+    if (!res.ok) throw new Error(`Jupiter swap API failed: ${res.status} ${await res.text()}`);
     const swapData = await res.json();
     if (swapData.error) throw new Error(swapData.error);
     swapTxBase64 = swapData.swapTransaction;
@@ -108,18 +106,28 @@ async function jupiterBuyAndBurn(
 
   console.log(`[claim] Jupiter swap confirmed: ${swapSig}`);
 
-  // 4. Read token balance from ATA
+  // 4. Wait for token account to be visible, then find it by owner lookup
+  await new Promise((r) => setTimeout(r, 4000));
   const mint = new PublicKey(mintStr);
-  const ata = await getAssociatedTokenAddress(mint, payer.publicKey);
 
   let tokenAmountRaw: bigint;
   let decimals: number;
+  let tokenAccountPubkey: PublicKey;
+  let tokenProgramId: PublicKey;
   try {
-    const tokenAccount = await getAccount(connection, ata, "confirmed");
-    tokenAmountRaw = tokenAccount.amount;
-    const mintInfo = await connection.getParsedAccountInfo(mint);
-    const parsed = (mintInfo.value?.data as any)?.parsed;
-    decimals = parsed?.info?.decimals ?? 6;
+    const accounts = await connection.getParsedTokenAccountsByOwner(
+      payer.publicKey,
+      { mint },
+      "confirmed"
+    );
+    if (accounts.value.length === 0) throw new Error("No token account found for mint");
+    const acct = accounts.value[0];
+    tokenAccountPubkey = acct.pubkey;
+    tokenProgramId = acct.account.owner; // TOKEN_PROGRAM_ID or TOKEN_2022_PROGRAM_ID
+    const info = (acct.account.data as any).parsed.info.tokenAmount;
+    tokenAmountRaw = BigInt(info.amount);
+    decimals = info.decimals;
+    console.log(`[claim] Token account: ${tokenAccountPubkey} (program: ${tokenProgramId}) balance: ${info.uiAmountString}`);
   } catch (err: any) {
     console.error(`[claim] Token balance read error: ${err.message}`);
     return { signature: swapSig, tokensBurned: "0" };
@@ -130,8 +138,8 @@ async function jupiterBuyAndBurn(
     return { signature: swapSig, tokensBurned: "0" };
   }
 
-  // 5. Burn all received tokens
-  const burnIx = createBurnCheckedInstruction(ata, mint, payer.publicKey, tokenAmountRaw, decimals);
+  // 5. Burn all received tokens (use the correct token program for this mint)
+  const burnIx = createBurnCheckedInstruction(tokenAccountPubkey, mint, payer.publicKey, tokenAmountRaw, decimals, [], tokenProgramId);
 
   const { blockhash: bh2, lastValidBlockHeight: lv2 } =
     await connection.getLatestBlockhash("confirmed");

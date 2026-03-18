@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "worker": "tsx scripts/worker.ts"
+    "worker": "tsx scripts/worker.ts",
+    "test-buyback": "tsx scripts/test-buyback.ts",
+    "check-tokens": "tsx scripts/check-tokens.ts"
   },
   "dependencies": {
     "@pump-fun/pump-sdk": "^1.28.0",
