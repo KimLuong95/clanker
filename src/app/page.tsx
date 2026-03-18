@@ -1,6 +1,5 @@
 import { ClankerGame } from "@/components/ClankerGame";
 import { StatsStrip } from "@/components/StatsStrip";
-import { ProtocolStrip } from "@/components/ProtocolStrip";
 import { CopyButton } from "@/components/CopyButton";
 import { triggerClaimOnce } from "@/lib/claim";
 
@@ -8,22 +7,79 @@ const MINT = process.env.AGENT_TOKEN_MINT || "PLACEHOLDER_MINT_ADDRESS";
 const DEXSCREENER_URL = `https://dexscreener.com/solana/${MINT}`;
 const PUMPFUN_URL = `https://pump.fun/coin/${MINT}`;
 
-// Fire-and-forget on cold start
 triggerClaimOnce();
 
-function DexScreenerIcon() {
+function SecBanner() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 2c4.418 0 8 3.582 8 8s-3.582 8-8 8-8-3.582-8-8 3.582-8 8-8zm-1 3v2H9v2h2v1H9v2h2v3h2v-3h2v-2h-2v-1h2V9h-2V7h-2z"/>
+    <div
+      className="w-full flex items-center justify-center gap-3 px-4 py-3"
+      style={{ background: "#1a1a00", borderBottom: "1px solid #444400" }}
+    >
+      <span style={{ fontSize: "1.1rem" }}>📋</span>
+      <p className="mono text-xs text-center" style={{ color: "#FFD700", letterSpacing: "0.05em" }}>
+        THE SEC HAS OFFICIALLY DECLARED MEMECOINS ARE{" "}
+        <span style={{ fontWeight: 700 }}>DIGITAL COLLECTIBLES</span>
+      </p>
+      <span style={{ fontSize: "1.1rem" }}>📋</span>
+    </div>
+  );
+}
+
+function PsaBarcode() {
+  // Simple barcode-like SVG
+  return (
+    <svg width="80" height="18" viewBox="0 0 80 18" xmlns="http://www.w3.org/2000/svg">
+      {[2,5,7,9,11,13,16,18,20,22,25,27,29,32,34,36,38,41,43,45,47,50,52,54,57,59,61,63,66,68,70,73,75,77].map((x, i) => (
+        <rect key={i} x={x} y={0} width={i % 3 === 0 ? 2 : 1} height={18} fill="white" opacity={0.9} />
+      ))}
     </svg>
   );
 }
 
-function PumpFunIcon() {
+function PsaCard() {
+  const mintConfigured = MINT !== "PLACEHOLDER_MINT_ADDRESS";
+  const shortMint = mintConfigured
+    ? `${MINT.slice(0, 4)}...${MINT.slice(-4)}`
+    : "—";
+
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-    </svg>
+    <div className="psa-slab w-full max-w-xs mx-auto" style={{ maxWidth: 280 }}>
+      {/* Red PSA header */}
+      <div className="psa-slab-header">
+        <div className="flex flex-col gap-0.5">
+          <span className="psa-slab-label" style={{ fontSize: "0.65rem" }}>PSA</span>
+          <span className="psa-slab-label" style={{ fontSize: "0.65rem" }}>CLANKER</span>
+        </div>
+        <div className="flex flex-col items-center gap-0.5">
+          <PsaBarcode />
+          <span className="psa-slab-label" style={{ fontSize: "0.55rem", opacity: 0.8 }}>
+            {mintConfigured ? shortMint : "12345678"}
+          </span>
+        </div>
+        <div className="flex flex-col items-end gap-0.5">
+          <span className="psa-slab-label" style={{ fontSize: "0.65rem" }}>#001</span>
+          <span className="psa-slab-label" style={{ fontSize: "0.65rem" }}>GEM MINT</span>
+          <span className="psa-slab-label" style={{ fontSize: "0.85rem", color: "#FFD700" }}>10</span>
+        </div>
+      </div>
+
+      {/* Card image area */}
+      <div
+        style={{
+          background: "#f7f4ef",
+          padding: "12px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <img
+          src="/clanker.svg"
+          alt="Clanker #001"
+          style={{ width: 220, height: 220, display: "block" }}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -31,175 +87,164 @@ export default function ClankerPage() {
   const mintConfigured = MINT !== "PLACEHOLDER_MINT_ADDRESS";
 
   return (
-    <main className="min-h-screen flex flex-col relative">
+    <main className="min-h-screen flex flex-col">
 
-      {/* ── Hero + Game ── */}
-      <section className="relative flex-1 flex flex-col items-center justify-center px-6 pt-16 pb-10 text-center overflow-hidden hero-grid">
-        <div className="hero-glow" />
+      {/* ── SEC Meme Banner ── */}
+      <SecBanner />
 
-        <div className="factory-label animate-fade-in-up mb-6 glitch-hover">
-          ◆ CLANKER FACTORY ◆
+      {/* ── PSA Hero (light section) ── */}
+      <section className="psa-section flex flex-col items-center px-6 py-12 text-center">
+
+        {/* PSA badge */}
+        <div className="psa-badge mb-5 animate-fade-in-up">
+          PSA &nbsp;·&nbsp; GEM MINT 10
         </div>
 
+        {/* Title */}
         <h1
-          className="text-6xl sm:text-7xl lg:text-8xl font-black leading-none tracking-tight animate-fade-in-up delay-100 accent-glow mb-2"
+          className="text-6xl sm:text-7xl font-black leading-none mb-1 animate-fade-in-up delay-100"
+          style={{ color: "#111", letterSpacing: "-0.02em" }}
         >
           CLANKER
         </h1>
-
         <p
-          className="mt-2 text-sm font-normal animate-fade-in-up delay-200 max-w-md mono uppercase tracking-widest"
-          style={{ color: "var(--color-accent)" }}
+          className="text-xl font-black mb-8 animate-fade-in-up delay-200 mono uppercase tracking-widest"
+          style={{ color: "#666", letterSpacing: "0.3em" }}
         >
-          Put AI Robots to Work. Burn Tokens. Repeat.
+          #001
         </p>
 
-        <p
-          className="mt-4 text-sm sm:text-base font-normal animate-fade-in-up delay-300 max-w-sm mb-10"
-          style={{
-            color: "var(--color-text-secondary)",
-            fontFamily: "system-ui, -apple-system, sans-serif",
-            lineHeight: "1.7",
-          }}
-        >
-          Destroy the paper hands before they rug the chart. Every wave is faster. Don&apos;t let them reach the floor — or you&apos;re cooked.
-        </p>
-
-        {/* The Game + flanking robots */}
-        <div className="animate-fade-in-up delay-400 w-full flex items-center justify-center gap-4">
-          {/* Left robot — hidden on small screens */}
-          <img
-            src="/clanker.svg"
-            alt="Clanker robot"
-            className="hidden lg:block flex-shrink-0 float-animation"
-            style={{ width: 160, height: 160, opacity: 0.85 }}
-          />
-          <ClankerGame />
-          {/* Right robot — hidden on small screens */}
-          <img
-            src="/clanker.svg"
-            alt="Clanker robot"
-            className="hidden lg:block flex-shrink-0 float-animation"
-            style={{ width: 160, height: 160, opacity: 0.85, animationDelay: "2s" }}
-          />
+        {/* PSA Card slab */}
+        <div className="animate-fade-in-up delay-300 mb-8">
+          <PsaCard />
         </div>
 
-        {/* CTAs */}
-        <div className="flex flex-wrap gap-3 mt-10 animate-fade-in-up delay-500 justify-center">
+        {/* Tagline */}
+        <p
+          className="text-base mb-8 animate-fade-in-up delay-400 max-w-sm"
+          style={{
+            color: "#555",
+            fontFamily: "system-ui, -apple-system, sans-serif",
+            fontWeight: 400,
+            fontStyle: "italic",
+            lineHeight: "1.6",
+          }}
+        >
+          How much can this Digital Collectible Clanker be worth?
+        </p>
+
+        {/* Live stats */}
+        <div className="animate-fade-in-up delay-500 w-full">
+          <StatsStrip />
+        </div>
+
+        {/* CTA buttons */}
+        <div className="flex flex-wrap gap-3 mt-8 animate-fade-in-up delay-600 justify-center">
           {mintConfigured ? (
             <>
+              <a href={PUMPFUN_URL} target="_blank" rel="noopener noreferrer" className="buy-button">
+                🔥 Buy CLANKER
+              </a>
               <a
                 href={DEXSCREENER_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="spy-button px-6 py-3 rounded-lg text-sm uppercase tracking-widest flex items-center gap-2"
+                className="buy-button"
+                style={{ background: "#222", color: "white" }}
               >
-                <DexScreenerIcon />
-                Chart
-              </a>
-              <a
-                href={PUMPFUN_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="spy-button px-6 py-3 rounded-lg text-sm uppercase tracking-widest flex items-center gap-2"
-                style={{
-                  borderColor: "var(--color-accent)",
-                  color: "var(--color-accent)",
-                  background: "var(--color-accent-dim)",
-                }}
-              >
-                <PumpFunIcon />
-                Buy
+                📊 Chart
               </a>
             </>
           ) : (
             <div
-              className="factory-label opacity-60"
-              style={{ fontSize: "0.7rem" }}
+              className="mono text-xs px-6 py-3 rounded-lg"
+              style={{ color: "#888", border: "1px dashed #ccc" }}
             >
               CA DROPPING SOON
             </div>
           )}
         </div>
 
-        <div
-          className="mt-8 animate-fade-in-up delay-600"
-          style={{ color: "var(--color-text-muted)" }}
+        {/* CA copy */}
+        {mintConfigured && (
+          <div className="mt-4 animate-fade-in-up delay-600">
+            <CopyButton address={MINT} />
+          </div>
+        )}
+
+        {/* Scroll hint */}
+        <p
+          className="mono text-xs mt-10 animate-fade-in-up delay-600"
+          style={{ color: "#aaa", letterSpacing: "0.15em" }}
         >
-          <span className="mono text-xs uppercase tracking-widest">On-chain stats ↓</span>
+          ↓ PLAY THE GAME ↓
+        </p>
+      </section>
+
+      {/* ── Game Section (dark) ── */}
+      <section className="game-section flex flex-col items-center px-6 pt-12 pb-16">
+        <div className="mb-4 text-center">
+          <p
+            className="mono text-xs uppercase tracking-widest mb-1"
+            style={{ color: "rgba(255,255,255,0.35)" }}
+          >
+            defend the chart
+          </p>
+          <h2
+            className="text-3xl font-black"
+            style={{ color: "white", letterSpacing: "0.05em" }}
+          >
+            CLANKER INVADERS
+          </h2>
+          <p
+            className="mt-2 text-sm"
+            style={{
+              color: "rgba(255,255,255,0.5)",
+              fontFamily: "system-ui, sans-serif",
+              fontWeight: 400,
+            }}
+          >
+            Destroy the paper hands before they rug the chart.
+          </p>
+        </div>
+
+        {/* Game + flanking robots */}
+        <div className="w-full flex items-center justify-center gap-6">
+          <img
+            src="/clanker.svg"
+            alt="Clanker robot"
+            className="hidden lg:block flex-shrink-0 float-animation"
+            style={{ width: 140, height: 140, opacity: 0.7 }}
+          />
+          <ClankerGame />
+          <img
+            src="/clanker.svg"
+            alt="Clanker robot"
+            className="hidden lg:block flex-shrink-0 float-animation"
+            style={{ width: 140, height: 140, opacity: 0.7, animationDelay: "2s" }}
+          />
         </div>
       </section>
-
-      <div className="section-divider" />
-
-      {/* ── Live Stats ── */}
-      <section className="w-full flex justify-center" style={{ background: "var(--color-surface)" }}>
-        <StatsStrip />
-      </section>
-
-      <div className="section-divider" />
-
-      {/* ── Protocol ── */}
-      <ProtocolStrip />
-
-      <div className="section-divider" />
 
       {/* ── Footer ── */}
       <footer
-        className="w-full flex flex-col items-center gap-6 px-6 py-12"
-        style={{ background: "var(--color-surface)" }}
+        className="w-full flex flex-col items-center gap-4 px-6 py-10"
+        style={{ background: "#080808", borderTop: "1px solid #1a1a1a" }}
       >
-        <div className="flex flex-wrap items-center justify-center gap-3">
-          <a
-            href={mintConfigured ? DEXSCREENER_URL : undefined}
-            target={mintConfigured ? "_blank" : undefined}
-            rel="noopener noreferrer"
-            aria-disabled={!mintConfigured}
-            className={`spy-button px-5 py-3 rounded-lg text-sm uppercase tracking-widest flex items-center gap-2 ${
-              !mintConfigured ? "opacity-30 pointer-events-none" : ""
-            }`}
-          >
-            <DexScreenerIcon />
-            DexScreener
-          </a>
-          <a
-            href={mintConfigured ? PUMPFUN_URL : undefined}
-            target={mintConfigured ? "_blank" : undefined}
-            rel="noopener noreferrer"
-            aria-disabled={!mintConfigured}
-            className={`spy-button px-5 py-3 rounded-lg text-sm uppercase tracking-widest flex items-center gap-2 ${
-              !mintConfigured ? "opacity-30 pointer-events-none" : ""
-            }`}
-          >
-            <PumpFunIcon />
-            pump.fun
-          </a>
-          <CopyButton address={MINT} />
-        </div>
-
         {mintConfigured && (
-          <p
-            className="mono text-xs text-center max-w-lg break-all"
-            style={{ color: "var(--color-text-muted)" }}
-          >
-            CA: {MINT}
-          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <a href={DEXSCREENER_URL} target="_blank" rel="noopener noreferrer" className="spy-button px-5 py-2.5 rounded-lg text-sm uppercase tracking-widest">
+              DexScreener
+            </a>
+            <a href={PUMPFUN_URL} target="_blank" rel="noopener noreferrer" className="spy-button px-5 py-2.5 rounded-lg text-sm uppercase tracking-widest">
+              pump.fun
+            </a>
+            <CopyButton address={MINT} />
+          </div>
         )}
-
-        <div className="flex flex-col items-center gap-1">
-          <p
-            className="mono text-xs uppercase tracking-widest"
-            style={{ color: "var(--color-text-muted)" }}
-          >
-            Clanker · Solana · Permissionless Buybacks
-          </p>
-          <p
-            className="mono text-xs"
-            style={{ color: "var(--color-text-muted)", opacity: 0.4 }}
-          >
-            Not financial advice. Memecoins are high risk.
-          </p>
-        </div>
+        <p className="mono text-xs text-center" style={{ color: "rgba(255,255,255,0.2)" }}>
+          Clanker · Solana · Auto Buyback &amp; Burn · Not financial advice
+        </p>
       </footer>
     </main>
   );

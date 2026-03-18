@@ -1,175 +1,214 @@
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 
-const PUMP_FEE_PROGRAM_ID = new PublicKey(
-  "pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ"
-);
-
-function getFeeSharingConfigPda(mint: PublicKey): PublicKey {
-  const [pda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("sharing-config"), mint.toBuffer()],
-    PUMP_FEE_PROGRAM_ID
-  );
-  return pda;
-}
-
 export interface ClankerStats {
-  agentRevenueSol: string;
-  agentRevenueUsd: string;
-  buybacksCompleted: number;
-  pendingFeesSol: string;
-  pendingFeesUsd: string;
-  canDistribute: boolean;
-  solPrice: number;
-  lastChecked: string;
+  tokensBurned: string;       // human-readable CLNK amount (e.g. "21870000")
+  tokensBurnedFormatted: string; // e.g. "21.87M"
+  totalBurns: number;         // number of buyback+burn events
+  tokenValueBurnedUsd: string; // USD value of all burned tokens
+  tokenPriceUsd: string;       // current CLNK price
+  marketCapUsd: string;        // rough market cap
   mintConfigured: boolean;
+  lastChecked: string;
 }
 
-interface HistoryCache {
-  agentRevenueSol: string;
-  buybacksCompleted: number;
-  cachedAt: number;
+// ── Caches ────────────────────────────────────────────────────────────────
+let burnStatsCache: { data: { tokensBurned: bigint; totalBurns: number }; cachedAt: number } | null = null;
+let priceCache: { price: number; supply: number; cachedAt: number } | null = null;
+const BURN_CACHE_TTL_MS = 5 * 60 * 1000;   // 5 min
+const PRICE_CACHE_TTL_MS = 60 * 1000;       // 1 min
+
+// ── Format helpers ────────────────────────────────────────────────────────
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)}B`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toFixed(0);
 }
-let historyCache: HistoryCache | null = null;
-const HISTORY_CACHE_TTL_MS = 5 * 60 * 1000;
 
-let solPriceCache = { price: 0, cachedAt: 0 };
+function formatUsd(n: number): string {
+  if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(2)}B`;
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(2)}K`;
+  return `$${n.toFixed(2)}`;
+}
 
-async function fetchSolPrice(): Promise<number> {
+// ── Jupiter price API ─────────────────────────────────────────────────────
+
+async function fetchTokenPrice(mintStr: string): Promise<{ price: number; supply: number }> {
   const now = Date.now();
-  if (solPriceCache.price > 0 && now - solPriceCache.cachedAt < 60_000) {
-    return solPriceCache.price;
+  if (priceCache && now - priceCache.cachedAt < PRICE_CACHE_TTL_MS) {
+    return { price: priceCache.price, supply: priceCache.supply };
   }
+
+  let price = 0;
+  let supply = 0;
+
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5000);
     const res = await fetch(
-      "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd",
+      `https://api.jup.ag/price/v2?ids=${mintStr}`,
       { signal: controller.signal }
     );
     clearTimeout(timer);
     const json = await res.json();
-    const price: number = json?.solana?.usd ?? 0;
-    if (price > 0) solPriceCache = { price, cachedAt: now };
-    return price;
+    price = parseFloat(json?.data?.[mintStr]?.price ?? "0") || 0;
   } catch {
-    return solPriceCache.price;
+    price = priceCache?.price ?? 0;
   }
+
+  // Get circulating supply from on-chain mint (we'll pass it in separately)
+  priceCache = { price, supply, cachedAt: now };
+  return { price, supply };
 }
 
-const ACCOUNT_REVENUE_OFFSET = 72;
+// ── Burn stats: scan dev wallet transactions ──────────────────────────────
 
-async function fetchHistoricalStats(
+async function fetchBurnStats(
   connection: Connection,
-  configPda: PublicKey,
-  accountData: Buffer | null
-): Promise<{ distributedLamports: number; buybacksCompleted: number }> {
+  devWallet: PublicKey,
+  mintStr: string,
+  mintDecimals: number
+): Promise<{ tokensBurned: bigint; totalBurns: number }> {
   const now = Date.now();
-  if (historyCache && now - historyCache.cachedAt < HISTORY_CACHE_TTL_MS) {
-    return {
-      distributedLamports: Math.round(
-        parseFloat(historyCache.agentRevenueSol) * LAMPORTS_PER_SOL
-      ),
-      buybacksCompleted: historyCache.buybacksCompleted,
-    };
+  if (burnStatsCache && now - burnStatsCache.cachedAt < BURN_CACHE_TTL_MS) {
+    return burnStatsCache.data;
   }
 
-  let distributedLamports = 0;
-  if (accountData && accountData.length >= ACCOUNT_REVENUE_OFFSET + 8) {
-    try {
-      const raw = accountData.readBigUInt64LE(ACCOUNT_REVENUE_OFFSET);
-      distributedLamports = Number(raw);
-    } catch {
-      distributedLamports = 0;
-    }
-  }
+  let tokensBurned = 0n;
+  let totalBurns = 0;
 
-  let buybackCount = 0;
   try {
-    const signatures = await connection.getSignaturesForAddress(
-      configPda,
-      { limit: 1000 },
-      "confirmed"
-    );
-    const successful = signatures.filter((s) => s.err == null).length;
-    buybackCount = Math.max(0, successful - 1);
-  } catch {
-    buybackCount = 0;
+    // Get up to 200 recent signatures from dev wallet
+    const sigs = await connection.getSignaturesForAddress(devWallet, { limit: 200 }, "confirmed");
+    const sigStrings = sigs.filter((s) => s.err == null).map((s) => s.signature);
+
+    if (sigStrings.length > 0) {
+      // Fetch parsed transactions in batches of 10
+      const batchSize = 10;
+      for (let i = 0; i < sigStrings.length; i += batchSize) {
+        const batch = sigStrings.slice(i, i + batchSize);
+        const txs = await connection.getParsedTransactions(batch, {
+          maxSupportedTransactionVersion: 0,
+          commitment: "confirmed",
+        });
+
+        for (const tx of txs) {
+          if (!tx) continue;
+          const instructions = tx.transaction.message.instructions;
+          for (const ix of instructions) {
+            if ("parsed" in ix && ix.program === "spl-token") {
+              const parsed = ix.parsed as any;
+              if (
+                (parsed.type === "burn" || parsed.type === "burnChecked") &&
+                parsed.info?.mint === mintStr
+              ) {
+                const amount = BigInt(parsed.info?.amount ?? parsed.info?.tokenAmount?.amount ?? "0");
+                tokensBurned += amount;
+                totalBurns++;
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error(`[stats] Burn scan error: ${err.message}`);
+    // Return cached values if available
+    return burnStatsCache?.data ?? { tokensBurned: 0n, totalBurns: 0 };
   }
 
-  const r = {
-    agentRevenueSol: (distributedLamports / LAMPORTS_PER_SOL).toFixed(4),
-    buybacksCompleted: buybackCount,
-    cachedAt: now,
-  };
-  historyCache = r;
-  return { distributedLamports, buybacksCompleted: buybackCount };
+  const result = { tokensBurned, totalBurns };
+  burnStatsCache = { data: result, cachedAt: now };
+  return result;
 }
+
+// ── Main fetchStats ────────────────────────────────────────────────────────
 
 export async function fetchStats(): Promise<ClankerStats> {
   const rpcUrl = process.env.SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
   const mintStr = (process.env.AGENT_TOKEN_MINT ?? "").trim();
+  const devWalletStr = (process.env.DEV_WALLET_ADDRESS ?? "").trim();
   const lastChecked = new Date().toISOString();
 
   if (!mintStr || mintStr === "PLACEHOLDER_MINT_ADDRESS") {
     return {
-      agentRevenueSol: "0.0000",
-      agentRevenueUsd: "$0.00",
-      buybacksCompleted: 0,
-      pendingFeesSol: "0.0000",
-      pendingFeesUsd: "$0.00",
-      canDistribute: false,
-      solPrice: 0,
-      lastChecked,
+      tokensBurned: "0",
+      tokensBurnedFormatted: "0",
+      totalBurns: 0,
+      tokenValueBurnedUsd: "$0.00",
+      tokenPriceUsd: "$0.00",
+      marketCapUsd: "$0.00",
       mintConfigured: false,
+      lastChecked,
     };
   }
 
   const connection = new Connection(rpcUrl, "confirmed");
   const mint = new PublicKey(mintStr);
-  const configPda = getFeeSharingConfigPda(mint);
 
-  const [accountInfo, solPrice] = await Promise.all([
-    connection.getAccountInfo(configPda).catch(() => null),
-    fetchSolPrice(),
-  ]);
+  // Fetch token mint info (supply + decimals)
+  let mintDecimals = 6;
+  let currentSupply = 0n;
+  let initialSupply = 1_000_000_000n; // pump.fun default: 1B tokens
 
-  const history = await fetchHistoricalStats(
-    connection,
-    configPda,
-    accountInfo ? (accountInfo.data as Buffer) : null
-  );
+  try {
+    const mintInfo = await connection.getParsedAccountInfo(mint);
+    const parsed = (mintInfo.value?.data as any)?.parsed;
+    mintDecimals = parsed?.info?.decimals ?? 6;
+    currentSupply = BigInt(parsed?.info?.supply ?? "0");
+    // Total burned = initial - current (in base units)
+    const initialBaseUnits = initialSupply * BigInt(10 ** mintDecimals);
+    const supplyBurned = initialBaseUnits > currentSupply ? initialBaseUnits - currentSupply : 0n;
+    // Use supply-based burned amount (more accurate than our wallet scan)
+    currentSupply = supplyBurned; // reuse var to avoid new var
+  } catch {
+    currentSupply = 0n;
+  }
 
-  let pendingLamports = 0;
-  if (accountInfo) {
+  // Fetch price
+  const { price } = await fetchTokenPrice(mintStr);
+
+  // Fetch our wallet's burn transaction count
+  let totalBurns = 0;
+  if (devWalletStr) {
     try {
-      const rentExempt = await connection.getMinimumBalanceForRentExemption(
-        accountInfo.data.length
-      );
-      pendingLamports = Math.max(0, accountInfo.lamports - rentExempt);
+      const devWallet = new PublicKey(devWalletStr);
+      const burnData = await fetchBurnStats(connection, devWallet, mintStr, mintDecimals);
+      totalBurns = burnData.totalBurns;
+      // If we got supply-burn data, prefer that for tokensBurned amount
+      // but use our tx count for totalBurns
     } catch {
-      pendingLamports = Math.max(0, accountInfo.lamports - 2_000_000);
+      totalBurns = 0;
     }
   }
 
-  const pendingFeesSol = (pendingLamports / LAMPORTS_PER_SOL).toFixed(4);
-  const canDistribute = pendingLamports > 0;
+  // tokensBurned = difference between initial supply and current supply
+  const tokensBurnedBase = currentSupply; // bigint, base units
+  const tokensBurnedHuman = Number(tokensBurnedBase) / Math.pow(10, mintDecimals);
+  const tokenValueBurned = tokensBurnedHuman * price;
 
-  const distributedSol = history.distributedLamports / LAMPORTS_PER_SOL;
-  const pendingSol = pendingLamports / LAMPORTS_PER_SOL;
-  const revenueSol = distributedSol + pendingSol;
-
-  const usd = (sol: number) =>
-    solPrice > 0 ? `$${(sol * solPrice).toFixed(2)}` : "—";
+  // Market cap = current circulating supply × price
+  let circulating = 0;
+  try {
+    const mintInfoRaw = await connection.getParsedAccountInfo(mint);
+    const parsed = (mintInfoRaw.value?.data as any)?.parsed;
+    const currentSupplyBase = BigInt(parsed?.info?.supply ?? "0");
+    circulating = Number(currentSupplyBase) / Math.pow(10, mintDecimals);
+  } catch {
+    circulating = 0;
+  }
+  const marketCap = circulating * price;
 
   return {
-    agentRevenueSol: revenueSol.toFixed(4),
-    agentRevenueUsd: usd(revenueSol),
-    buybacksCompleted: history.buybacksCompleted ?? 0,
-    pendingFeesSol,
-    pendingFeesUsd: usd(pendingSol),
-    canDistribute,
-    solPrice,
-    lastChecked,
+    tokensBurned: tokensBurnedHuman.toFixed(0),
+    tokensBurnedFormatted: formatTokens(tokensBurnedHuman),
+    totalBurns,
+    tokenValueBurnedUsd: formatUsd(tokenValueBurned),
+    tokenPriceUsd: price > 0 ? `$${price.toFixed(8)}` : "—",
+    marketCapUsd: formatUsd(marketCap),
     mintConfigured: true,
+    lastChecked,
   };
 }

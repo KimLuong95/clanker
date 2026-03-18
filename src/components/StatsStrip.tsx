@@ -3,53 +3,14 @@
 import { useState, useEffect, useCallback } from "react";
 
 interface Stats {
-  agentRevenueSol: string;
-  agentRevenueUsd: string;
-  buybacksCompleted: number;
-  pendingFeesSol: string;
-  pendingFeesUsd: string;
-  canDistribute: boolean;
-  solPrice: number;
-  lastChecked: string;
+  tokensBurned: string;
+  tokensBurnedFormatted: string;
+  totalBurns: number;
+  tokenValueBurnedUsd: string;
+  tokenPriceUsd: string;
+  marketCapUsd: string;
   mintConfigured: boolean;
-}
-
-function StatCard({
-  label,
-  primary,
-  secondary,
-  loading,
-}: {
-  label: string;
-  primary: string | number;
-  secondary?: string;
-  loading: boolean;
-}) {
-  return (
-    <div className="stat-card rounded-xl p-6 relative overflow-hidden flex flex-col gap-2">
-      <div className="absolute top-4 right-4">
-        <span className="pulse-dot" />
-      </div>
-      <p
-        className="text-xs mono uppercase tracking-widest"
-        style={{ color: "var(--color-text-muted)" }}
-      >
-        {label}
-      </p>
-      {loading ? (
-        <div className="skeleton h-10 w-32 mt-1" />
-      ) : (
-        <p className="accent-glow text-4xl sm:text-5xl font-bold leading-none mt-1">
-          {primary}
-        </p>
-      )}
-      {secondary && !loading && (
-        <p className="text-xs mono" style={{ color: "var(--color-text-muted)" }}>
-          {secondary}
-        </p>
-      )}
-    </div>
-  );
+  lastChecked: string;
 }
 
 export function StatsStrip() {
@@ -80,72 +41,77 @@ export function StatsStrip() {
   const notConfigured = !loading && stats && !stats.mintConfigured;
 
   return (
-    <div className="w-full max-w-5xl mx-auto px-4 py-12">
+    <div className="w-full max-w-2xl mx-auto px-4">
       {notConfigured && (
-        <div
-          className="mono text-xs text-center mb-6 opacity-60"
-          style={{ color: "var(--color-accent)" }}
-        >
+        <p className="mono text-xs text-center mb-4 opacity-60" style={{ color: "#888" }}>
           TOKEN NOT MINTED YET — STATS WILL APPEAR AFTER LAUNCH
-        </div>
+        </p>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard
-          label="Revenue"
-          primary={stats ? stats.agentRevenueUsd : "—"}
-          secondary={
-            stats?.mintConfigured
-              ? `${stats.agentRevenueSol} SOL total fees`
-              : undefined
-          }
-          loading={loading}
-        />
-        <StatCard
-          label="Buybacks Completed"
-          primary={stats ? stats.buybacksCompleted : "—"}
-          secondary="Times Clanker bought &amp; burned $CLANKER"
-          loading={loading}
-        />
-        <StatCard
-          label="Buybacks Pending"
-          primary={stats ? stats.pendingFeesUsd : "—"}
-          secondary={
-            stats?.mintConfigured
-              ? stats.canDistribute
-                ? `${stats.pendingFeesSol} SOL — firing soon`
-                : `${stats.pendingFeesSol} SOL accumulating`
-              : undefined
-          }
-          loading={loading}
-        />
+      {/* Two-column stats under the PSA card */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* Tokens Burned */}
+        <div className="stat-card-light">
+          <p className="mono text-xs uppercase tracking-widest" style={{ color: "#888" }}>
+            🔥 Tokens Burned
+          </p>
+          {loading ? (
+            <div className="skeleton h-8 w-28 mt-1" />
+          ) : (
+            <p className="text-3xl font-black tabular-nums" style={{ color: "#CC0000" }}>
+              {stats?.tokensBurnedFormatted ?? "0"}
+            </p>
+          )}
+          {!loading && stats?.mintConfigured && (
+            <p className="mono text-xs" style={{ color: "#888" }}>
+              {stats.tokenValueBurnedUsd} value destroyed
+            </p>
+          )}
+        </div>
+
+        {/* Total Burns */}
+        <div className="stat-card-light">
+          <p className="mono text-xs uppercase tracking-widest" style={{ color: "#888" }}>
+            🤖 Total Burns
+          </p>
+          {loading ? (
+            <div className="skeleton h-8 w-16 mt-1" />
+          ) : (
+            <p className="text-3xl font-black tabular-nums" style={{ color: "#111" }}>
+              {stats?.totalBurns ?? 0}
+            </p>
+          )}
+          {!loading && (
+            <p className="mono text-xs" style={{ color: "#888" }}>
+              buyback &amp; burn events
+            </p>
+          )}
+        </div>
       </div>
 
-      <div className="flex items-center justify-center gap-3 mt-6 flex-wrap">
-        <span className="pulse-dot" />
-        <span
-          className="mono text-xs uppercase tracking-widest"
-          style={{ color: "var(--color-text-muted)" }}
-        >
+      {/* Live indicator */}
+      <div className="flex items-center justify-center gap-3 mt-4 flex-wrap">
+        <span className="pulse-dot" style={{ background: "#14F195" }} />
+        <span className="mono text-xs uppercase tracking-widest" style={{ color: "#888" }}>
           LIVE
         </span>
-        <span className="mono text-xs" style={{ color: "var(--color-text-muted)" }}>·</span>
-        <span className="mono text-xs" style={{ color: "var(--color-text-muted)" }}>
-          Auto-claim every 1 min
+        <span className="mono text-xs" style={{ color: "#aaa" }}>·</span>
+        <span className="mono text-xs" style={{ color: "#888" }}>
+          Auto buyback every 1 min
         </span>
-        {stats?.solPrice ? (
+        {stats?.tokenPriceUsd && stats.tokenPriceUsd !== "—" && (
           <>
-            <span className="mono text-xs" style={{ color: "var(--color-text-muted)" }}>·</span>
-            <span className="mono text-xs" style={{ color: "var(--color-text-muted)" }}>
-              SOL ${stats.solPrice.toFixed(2)}
+            <span className="mono text-xs" style={{ color: "#aaa" }}>·</span>
+            <span className="mono text-xs" style={{ color: "#888" }}>
+              price {stats.tokenPriceUsd}
             </span>
           </>
-        ) : null}
+        )}
         {lastUpdate && (
           <>
-            <span className="mono text-xs" style={{ color: "var(--color-text-muted)" }}>·</span>
-            <span className="mono text-xs" style={{ color: "var(--color-text-muted)" }}>
-              Updated {lastUpdate}
+            <span className="mono text-xs" style={{ color: "#aaa" }}>·</span>
+            <span className="mono text-xs" style={{ color: "#888" }}>
+              updated {lastUpdate}
             </span>
           </>
         )}
